@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use itertools::{iproduct, Itertools};
+use take_until::TakeUntilExt;
 
 #[derive(Debug)]
 struct Trees {
@@ -43,6 +44,15 @@ impl Trees {
             .iter()
             .step_by(self.width)
             .skip(1)
+    }
+
+    fn all_dirs(&self, x: usize, y: usize) -> [Box<dyn Iterator<Item = &u32> + '_>; 4] {
+        [
+            Box::new(self.above(x, y)),
+            Box::new(self.to_left(x, y)),
+            Box::new(self.to_right(x, y)),
+            Box::new(self.below(x, y)),
+        ]
     }
 }
 
@@ -90,39 +100,25 @@ fn main() -> Result<()> {
     let result_a = iproduct!(0..trees.width, 0..trees.length)
         .filter(|(x, y)| {
             let height = trees.height_at(*x, *y);
-            trees.to_left(*x, *y).all(|h| *h < height)
-                || trees.to_right(*x, *y).all(|h| *h < height)
-                || trees.above(*x, *y).all(|h| *h < height)
-                || trees.below(*x, *y).all(|h| *h < height)
+            trees
+                .all_dirs(*x, *y)
+                .iter_mut()
+                .any(|dir| dir.all(|h| *h < height))
         })
         .count();
     println!("Day 8, part A: {}", result_a);
 
-    let result_b = iproduct!(0..trees.width, 0..trees.length)
+    let result_b: usize = iproduct!(0..trees.width, 0..trees.length)
         .map(|(x, y)| {
             let height = trees.height_at(x, y);
-            let l = match trees.to_left(x, y).position(|h| *h >= height) {
-                Some(d) => d + 1,
-                None => trees.to_left(x, y).count(),
-            };
-            let r = match trees.to_right(x, y).position(|h| *h >= height) {
-                Some(d) => d + 1,
-                None => trees.to_right(x, y).count(),
-            };
-            let a = match trees.above(x, y).position(|h| *h >= height) {
-                Some(d) => d + 1,
-                None => trees.above(x, y).count(),
-            };
-            let b = match trees.below(x, y).position(|h| *h >= height) {
-                Some(d) => d + 1,
-                None => trees.below(x, y).count(),
-            };
-
-            l * r * a * b
+            trees
+                .all_dirs(x, y)
+                .iter_mut()
+                .map(|dir| dir.take_until(|h| **h >= height).count())
+                .product()
         })
         .max()
         .unwrap();
-
     println!("Day 8, part B: {}", result_b);
 
     Ok(())
